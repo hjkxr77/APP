@@ -1,0 +1,72 @@
+name: Build NoteSmart
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Generate platform folders
+        run: |
+          flutter create --platforms=android,windows --project-name notesmart --org com.notesmart .
+          rm -rf test
+      - name: Internet permission and app name
+        run: |
+          sed -i 's#<application#<uses-permission android:name="android.permission.INTERNET"/>\n    <application#' android/app/src/main/AndroidManifest.xml
+          sed -i 's/android:label="notesmart"/android:label="NoteSmart"/' android/app/src/main/AndroidManifest.xml
+      - run: flutter pub get
+      - name: Make app icon
+        continue-on-error: true
+        run: |
+          pip install pillow
+          python tools/make_icon.py
+          dart run flutter_launcher_icons
+      - run: flutter build apk --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NoteSmart-APK
+          path: build/app/outputs/flutter-apk/app-release.apk
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Generate platform folders
+        shell: bash
+        run: |
+          flutter create --platforms=android,windows --project-name notesmart --org com.notesmart .
+          rm -rf test
+          sed -i 's/L"notesmart"/L"NoteSmart"/' windows/runner/main.cpp || true
+      - run: flutter pub get
+      - name: Make app icon
+        continue-on-error: true
+        shell: bash
+        run: |
+          pip install pillow
+          python tools/make_icon.py
+          dart run flutter_launcher_icons
+      - run: flutter build windows --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NoteSmart-Windows
+          path: build/windows/x64/runner/Release/
